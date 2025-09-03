@@ -12,6 +12,17 @@ export type MintEvent = {
         };
         hasRoute?: boolean;
         activity1m?: number;
+        stats?: {
+            priceUsd?: number | null;
+            priceSol?: number | null;
+            liquidityUsd?: number | null;
+            volume24h?: number | null;
+            fdv?: number | null;
+            marketCap?: number | null;
+            dexId?: string | null;
+            pairAddress?: string | null;
+            source?: string;
+        };
     };
 };
 

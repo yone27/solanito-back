@@ -8,6 +8,8 @@ import { MintInfoService } from '../mints/mint-info.service';
 import { RouteService } from '../mints/route.service';
 import { parseEnv } from '../core/env';
 import { StageService } from '../mints/stage.service';
+import { curveDrivers } from 'src/launchpads/curve.drivers';
+import { StatsService } from 'src/mints/stats.service';
 
 @Injectable()
 export class ListenerService implements OnModuleInit {
@@ -21,6 +23,7 @@ export class ListenerService implements OnModuleInit {
         private readonly mintInfo: MintInfoService,
         private readonly routes: RouteService,
         private readonly stage: StageService,
+        private readonly stats: StatsService,
     ) { }
 
     async onModuleInit() {
@@ -33,6 +36,11 @@ export class ListenerService implements OnModuleInit {
     snapshot() { return this.store.snapshot(); }
     stream() { return this.store.stream(); }
     size() { return this.store.size(); }
+    getRecent(limit = 50) {
+        const snap = this.store.snapshot();
+        const n = Math.max(1, Math.min(limit, snap.length));
+        return snap.slice(0, n);
+    }
 
     private subscribeMintWide() {
         const sub = (pid: PublicKey, label: 'spl-token' | 'token-2022') => {
@@ -75,14 +83,36 @@ export class ListenerService implements OnModuleInit {
                             ? await this.routes.hasJupRoute(mint, parseInt(this.env.SLIPPAGE_BPS, 10) || 200)
                             : false;
 
-                        const details = {
+                        const details: any = {
                             decimals: info.decimals,
                             mintAuthority: info.mintAuthority ? info.mintAuthority.toBase58() : null,
                             freezeAuthority: info.freezeAuthority ? info.freezeAuthority.toBase58() : null,
                             authorityOwner: { mint: mintOwner, freeze: freezeOwner },
                             hasRoute,
+                            stats: null,
                             // activity1m lo expone LaunchpadsService vía controller (si lo quieres aquí, inyecta el servicio)
                         };
+
+                        // 👇 Enriquecer con stats on-chain de pump.fun (si aplica)
+                        await this.enrichWithCurveGeneric(mint, details);
+
+                        if (details.hasRoute) {
+                            const s = await this.stats.getDexScreenerStats(mint);
+                            if (s) {
+                                details.stats = {
+                                    priceUsd: s.priceUsd ?? null,
+                                    priceSol: s.priceSol ?? null,
+                                    liquidityUsd: s.liquidityUsd ?? null,
+                                    volume24h: s.volume24h ?? null,
+                                    fdv: s.fdv ?? s.marketCap ?? null,
+                                    marketCap: s.marketCap ?? null,
+                                    dexId: s.dexId ?? null,
+                                    pairAddress: s.pairAddress ?? null,
+                                    source: s.source,
+                                };
+                            }
+                        }
+
 
                         const event = { source: label, mint: m, ts: Date.now(), details };
                         event['stage'] = this.stage.compute(event); // opcional: guardar stage
@@ -98,4 +128,48 @@ export class ListenerService implements OnModuleInit {
         sub(TOKEN_2022_PROGRAM_ID, 'token-2022');
         this.log.log('Mint-wide suscrito a SPL-Token y Token-2022');
     }
+
+    private async enrichWithCurveGeneric(mint: PublicKey, details: any) {
+        // Solo en fase curva (si ya hay pool, usa Dex stats y sal)
+        if (details?.hasRoute) {
+            this.log.log('Tiene ruta, no se enriquece con stats on-chain de pump.fun');
+            return;
+        }
+
+        // 1) Si ya venía tag (por authority owner o actividad), intenta ese primero
+        const hinted = (details?.authorityOwner?.mint?.tag ?? details?.curveTag)?.toString().toLowerCase();
+        const ordered = hinted ? [
+            ...curveDrivers.filter(d => d.name === hinted),
+            ...curveDrivers.filter(d => d.name !== hinted),
+        ] : curveDrivers;
+
+        for (const drv of ordered) {
+            let isThis = false;
+
+            if (drv.detect) {
+                try { isThis = await drv.detect(this.conn, mint); } catch { }
+            }
+
+            if (!isThis && hinted && drv.name === hinted) isThis = true;
+
+            if (!isThis) continue;
+
+            details.curveTag = drv.name;
+            details.authorityOwner = details.authorityOwner ?? {};
+            details.authorityOwner.mint = details.authorityOwner.mint ?? {
+                label: 'launchpad',
+                tag: drv.name,
+                programId: drv.programId.toBase58(),
+            };
+
+            if (drv.readStats) {
+                const stats = await drv.readStats(this.conn, mint).catch(() => null);
+                if (stats) {
+                    details.stats = { ...(details.stats ?? {}), ...stats, source: `${drv.name}-onchain` };
+                }
+            }
+            break;
+        }
+    }
+
 }
