@@ -1,19 +1,10 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ListenerModule } from './listener/listener.module';
+import { CoreModule } from './core/solana.connection';
+import { LaunchpadsModule } from './launchpads/launchpads.module';
 import { MintsModule } from './mints/mints.module';
-import { MintsController } from './mints/mints.controller';
-import { MintsService } from './mints/mints.service';
-
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    ListenerModule,
-    MintsModule,
-  ],
-  controllers: [MintsController],
-  providers: [MintsService],
+  imports: [CoreModule, LaunchpadsModule, MintsModule],
 })
-
-export class AppModule { }
+export class AppModule {}

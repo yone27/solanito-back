@@ -1,9 +1,16 @@
 import { Module } from '@nestjs/common';
+import { ListenerService } from '../listener/listener.service';
+import { LaunchpadsModule } from '../launchpads/launchpads.module';
+import { EventsStore } from './events.store';
+import { MintInfoService } from './mint-info.service';
+import { RouteService } from './route.service';
+import { StageService } from './stage.service';
 import { MintsController } from './mints.controller';
-import { ListenerModule } from '../listener/listener.module';
 
 @Module({
-    imports: [ListenerModule],
-    controllers: [MintsController],
+  imports: [LaunchpadsModule],
+  providers: [EventsStore, MintInfoService, RouteService, ListenerService, StageService],
+  controllers: [MintsController],
+  exports: [ListenerService, EventsStore, StageService],
 })
-export class MintsModule { }
+export class MintsModule {}
