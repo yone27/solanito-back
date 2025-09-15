@@ -16,6 +16,7 @@ export class ListenerService implements OnModuleInit {
     private readonly log = new Logger(ListenerService.name);
     private readonly seen = new Set<string>();
     private readonly env = parseEnv(process.env);
+    private trackers = new Map<string, () => void>();
 
     constructor(
         @Inject(SOLANA_CONNECTION) private readonly conn: Connection,

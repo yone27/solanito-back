@@ -3,10 +3,6 @@ import { Body, Controller, Get, Inject, MessageEvent, Post, Query, Sse } from '@
 import { Observable, from, merge } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { LaunchpadsService } from '../launchpads/launchpads.service';
-//import { EventsStore } from './events.store';
-//import { MintInfoService } from './mint-info.service';
-//import { RouteService } from './route.service';
-//import { StageService } from './stage.service';
 import { ListenerService } from 'src/listener/listener.service';
 
 type Source = 'spl-token' | 'token-2022' | 'pumpfun';
@@ -19,12 +15,7 @@ function parseCsv<T extends string>(q?: string): T[] {
 
 @Controller()
 export class MintsController {
-
     constructor(
-        //private readonly store: EventsStore,
-        //private readonly mintInfo: MintInfoService,
-        //private readonly routes: RouteService,
-        //private readonly stage: StageService,
         private readonly launchpads: LaunchpadsService, 
         private readonly listener: ListenerService
     ) { }
@@ -35,8 +26,10 @@ export class MintsController {
         @Query('launchpad') launchpadQ?: string,               // ej: pumpfun,bonkpad
         @Query('stage') stage?: Stage,                         // ej: surge
         @Query('source') sourceQ?: string,                     // ej: spl-token,token-2022
-        @Query('minDec') minDecQ?: string, @Query('maxDec') maxDecQ?: string,
-        @Query('ownerMint') ownerMintQ?: string, @Query('ownerFreeze') ownerFreezeQ?: string,
+        @Query('minDec') minDecQ?: string, 
+        @Query('maxDec') maxDecQ?: string,
+        @Query('ownerMint') ownerMintQ?: string, 
+        @Query('ownerFreeze') ownerFreezeQ?: string,
         @Query('replay') replayQ?: string                      // ej: 50 (opcional)
     ): Observable<MessageEvent> {
         const launchpads = parseCsv<string>(launchpadQ);
@@ -54,6 +47,7 @@ export class MintsController {
             }
             // stage (si el servicio ya lo computa y lo guarda; si no, usa computeStageFor)
             const st = e.stage ?? (this.listener as any).computeStageFor?.(e);
+            console.log({st});
 
             if (stage && st !== stage) return false;
 
