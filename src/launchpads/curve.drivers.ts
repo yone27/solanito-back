@@ -16,6 +16,17 @@ export interface CurveDriver {
     readStats?: (conn: Connection, mint: PublicKey) => Promise<CurveStats | null>;
 }
 
+const LAMPORTS_PER_SOL = 1_000_000_000;
+
+function normalizeMarketCaps(s: any) {
+  let mcSol = s?.mcSol;
+  // Si viene en lamports (caso pumpfun-onchain), convierto.
+  if (typeof mcSol === 'number' && s?.source === 'pumpfun-onchain' && mcSol > 1e6) {
+    mcSol = mcSol / LAMPORTS_PER_SOL;
+  }
+  return { ...s, mcSol };
+}
+
 /* === Pump.fun driver (completo) === */
 export const pumpfunDriver: CurveDriver = {
     name: 'pumpfun',
@@ -28,7 +39,7 @@ export const pumpfunDriver: CurveDriver = {
     readStats: async (conn, mint) => {
         const s = await fetchPumpfunCurveStats(conn, mint);
         if (!s) return null;
-        return { curveProgressPct: s.curveProgressPct, mcSol: s.marketCapSol, complete: s.complete };
+        return normalizeMarketCaps({ curveProgressPct: s.curveProgressPct, mcSol: s.marketCapSol, complete: s.complete });
     },
 };
 
